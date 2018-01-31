@@ -602,7 +602,7 @@ class TopoRouter(TopoGear):
         # Remove old core files
         map(os.remove, glob.glob('{}/{}*.dmp'.format(self.logdir, self.name)))
 
-    def load_config(self, daemon, source=None):
+    def load_config(self, daemon, source=None, param=None):
         """
         Loads daemon configuration from the specified source
         Possible daemon values are: TopoRouter.RD_ZEBRA, TopoRouter.RD_RIP,
@@ -612,7 +612,7 @@ class TopoRouter(TopoGear):
         """
         daemonstr = self.RD.get(daemon)
         self.logger.info('loading "{}" configuration: {}'.format(daemonstr, source))
-        self.tgen.net[self.name].loadConf(daemonstr, source)
+        self.tgen.net[self.name].loadConf(daemonstr, param, source)
 
     def check_router_running(self):
         """
