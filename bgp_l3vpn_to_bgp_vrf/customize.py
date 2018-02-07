@@ -195,37 +195,44 @@ def ltemplatePreRouterStartHook():
     #configure r2 mpls interfaces
     intfs = ['lo', 'r2-eth0', 'r2-eth1', 'r2-eth2']
     for intf in intfs:
+<<<<<<< HEAD
         cc.doCmd(tgen, 'r2', 'echo 1 > /proc/sys/net/mpls/conf/{}/input'.format(intf))
 
     #configure cust1 VRFs & MPLS
     rtrs = ['r1', 'r3', 'r4']
-    cmds = ['ip link add cust1 type vrf table 10',
-            'ip ru add oif cust1 table 10',
-            'ip ru add iif cust1 table 10',
-            'ip link set dev cust1 up']
-    for rtr in rtrs:
-        router = tgen.gears[rtr]
-        for cmd in cmds:
-            cc.doCmd(tgen, rtr, cmd)
-        cc.doCmd(tgen, rtr, 'ip link set dev {}-eth4 master cust1'.format(rtr))
-        intfs = ['cust1', 'lo', rtr+'-eth0', rtr+'-eth4']
+    vrfs = ['r1-cust1', 'r3-cust1', 'r4-cust1']
+    cmds = ['ip link add {} type vrf table 10',
+            'ip ru add oif {} table 10',
+            'ip ru add iif {} table 10',
+            'ip link set dev {} up']
+    rtrs_vrf = zip(rtrs, vrfs)
+    for rtr_vrf in rtrs_vrf:
+        # enable MPLS before VRF configuration
+        # this avoids having to handle VRF differences between NS and vrf-lite
+        intfs = [rtr_vrf[1], 'lo', rtr_vrf[0]+'-eth0', rtr_vrf[0]+'-eth4']
         for intf in intfs:
-            cc.doCmd(tgen, rtr, 'echo 1 > /proc/sys/net/mpls/conf/{}/input'.format(intf))
-        logger.info('setup {0} vrf cust1, {0}-eth4. enabled mpls input.'.format(rtr))
-    #configure cust2 VRFs & MPLS
+            cc.doCmd(tgen, rtr_vrf[0], 'echo 1 > /proc/sys/net/mpls/conf/{}/input'.format(intf))
+        logger.info('setup {} vrf {}, {}-eth4. enabled mpls input.'.format(rtr_vrf[0], rtr_vrf[1], rtr_vrf[0]))
+        router = tgen.gears[rtr_vrf[0]]
+        for cmd in cmds:
+            cc.doCmd(tgen, rtr_vrf[0], cmd.format(rtr_vrf[1]))
+        cc.doCmd(tgen, rtr_vrf[0], 'ip link set dev {}-eth4 master {}'.format(rtr_vrf[0], rtr_vrf[1]))
+    #configure r4-cust2 VRFs & MPLS
     rtrs = ['r4']
-    cmds = ['ip link add cust2 type vrf table 20',
-            'ip ru add oif cust1 table 20',
-            'ip ru add iif cust1 table 20',
-            'ip link set dev cust2 up']
+    cmds = ['ip link add r4-cust2 type vrf table 20',
+            'ip ru add oif r4-cust2 table 20',
+            'ip ru add iif r4-cust2 table 20',
+            'ip link set dev r4-cust2 up']
     for rtr in rtrs:
-        for cmd in cmds:
-            cc.doCmd(tgen, rtr, cmd)
-        cc.doCmd(tgen, rtr, 'ip link set dev {}-eth5 master cust2'.format(rtr))
-        intfs = ['cust2', rtr+'-eth5']
+        # enable MPLS before VRF configuration
+        # this avoids having to handle VRF differences between NS and vrf-lite
+        intfs = ['r4-cust2', rtr+'-eth5']
         for intf in intfs:
             cc.doCmd(tgen, rtr, 'echo 1 > /proc/sys/net/mpls/conf/{}/input'.format(intf))
-        logger.info('setup {0} vrf cust2, {0}-eth5. enabled mpls input.'.format(rtr))
+        logger.info('setup {0} vrf r4-cust2, {0}-eth5. enabled mpls input.'.format(rtr))
+        for cmd in cmds:
+            cc.doCmd(tgen, rtr, cmd)
+        cc.doCmd(tgen, rtr, 'ip link set dev {}-eth5 master r4-cust2'.format(rtr))
     global InitSuccess
     if cc.getOutput():
         InitSuccess = False
