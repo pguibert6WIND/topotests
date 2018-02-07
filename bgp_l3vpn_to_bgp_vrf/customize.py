@@ -146,6 +146,20 @@ def ltemplatePreRouterStartHook():
     krel = platform.release()
     tgen = get_topogen()
     logger.info('pre router-start hook, kernel=' + krel)
+
+    # retrieve VRF backend kind
+    CustomizeVrfWithNetns = os.getenv('VRF_BACKEND_NETNS') == '1'
+    if CustomizeVrfWithNetns == True:
+        router_list = tgen.routers()
+        for rname, router in router_list.iteritems():
+            if router.check_capability(
+                    TopoRouter.RD_ZEBRA,
+                    '-vrfwnetns'
+                    ) == False:
+                return  pytest.skip('Skipping NETNS feature not available')
+        print 'Testing with VRF Namespace support'
+    # otherwise fallback to testing with VRF-LITE support
+
     #check for mpls
     if tgen.hasmpls != True:
         logger.info('MPLS not available, skipping setup')
@@ -163,34 +177,50 @@ def ltemplatePreRouterStartHook():
 
     #configure cust1 VRFs & MPLS
     rtrs = ['r1', 'r3', 'r4']
-    cmds = ['ip link add {0}-cust1 type vrf table 10',
-            'ip ru add oif {0}-cust1 table 10',
-            'ip ru add iif {0}-cust1 table 10',
-            'ip link set dev {0}-cust1 up']
+    if CustomizeVrfWithNetns == True:
+        cmds = ['ip netns add {0}-cust1',
+                'ip link set dev {0}-eth4 netns {0}-cust1',
+                'ip netns exec {0}-cust1 ifconfig {0}-eth4 up']
+    else:
+        cmds = ['ip link add {0}-cust1 type vrf table 10',
+                'ip ru add oif {0}-cust1 table 10',
+                'ip ru add iif {0}-cust1 table 10',
+                'ip link set dev {0}-cust1 up',
+                'ip link set dev {0}-eth4 master {0}-cust1']
     for rtr in rtrs:
-        router = tgen.gears[rtr]
-        for cmd in cmds:
-            cc.doCmd(tgen, rtr, cmd.format(rtr))
-        cc.doCmd(tgen, rtr, 'ip link set dev {0}-eth4 master {0}-cust1'.format(rtr))
+        # enable MPLS before VRF configuration
+        # this avoids having to handle VRF differences between NS and vrf-lite
         intfs = [rtr+'-cust1', 'lo', rtr+'-eth0', rtr+'-eth4']
         for intf in intfs:
             cc.doCmd(tgen, rtr, 'echo 1 > /proc/sys/net/mpls/conf/{}/input'.format(intf))
         logger.info('setup {0} vrf {0}-cust1, {0}-eth4. enabled mpls input.'.format(rtr))
-    #configure cust2 VRFs & MPLS
-    rtrs = ['r4']
-    cmds = ['ip link add {0}-cust2 type vrf table 20',
-            'ip ru add oif {0}-cust1 table 20',
-            'ip ru add iif {0}-cust1 table 20',
-            'ip link set dev {0}-cust2 up']
-    for rtr in rtrs:
+        router = tgen.gears[rtr]
         for cmd in cmds:
             cc.doCmd(tgen, rtr, cmd.format(rtr))
-        cc.doCmd(tgen, rtr, 'ip link set dev {0}-eth5 master {0}-cust2'.format(rtr))
+    #configure cust2 VRFs & MPLS
+    rtrs = ['r4']
+    if CustomizeVrfWithNetns == True:
+        cmds = ['ip netns add {0}-cust2',
+                'ip link set dev {0}-eth5 netns {0}-cust2',
+                'ip netns exec {0}-cust2 ifconfig {0}-eth5 up']
+    else:
+        cmds = ['ip link add {0}-cust2 type vrf table 20',
+                'ip ru add oif {0}-cust1 table 20',
+                'ip ru add iif {0}-cust1 table 20',
+                'ip link set dev {0}-cust2 up',
+                'ip link set dev {0}-eth5 master {0}-cust2']
+    for rtr in rtrs:
+        # enable MPLS before VRF configuration
+        # this avoids having to handle VRF differences between NS and vrf-lite
+        # TODO1 : vrf interface should not be handlesd when in NETNS
         intfs = [rtr+'-cust2', rtr+'-eth5']
         for intf in intfs:
             cc.doCmd(tgen, rtr, 'echo 1 > /proc/sys/net/mpls/conf/{}/input'.format(intf))
         logger.info('setup {0} vrf {0}-cust2, {0}-eth5. enabled mpls input.'.format(rtr))
-    if cc.getOutput():
+        for cmd in cmds:
+            cc.doCmd(tgen, rtr, cmd.format(rtr))
+        # TODO2 : ignore output of ip netns commands ( since conflicting with mininet
+     if cc.getOutput():
         InitSuccess = False
         logger.info('VRF config failed ({}), tests will be skipped'.format(cc.getOutput()))
     else:
