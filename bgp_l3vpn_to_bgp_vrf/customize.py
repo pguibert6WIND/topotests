@@ -92,6 +92,7 @@ import shutil
 CWD = os.path.dirname(os.path.realpath(__file__))
 # test name based on directory
 TEST = os.path.basename(CWD)
+CustomizeVrfWithNetns = True
 
 InitSuccess = False
 
@@ -201,10 +202,13 @@ def ltemplatePreRouterStartHook():
     #configure cust1 VRFs & MPLS
     rtrs = ['r1', 'r3', 'r4']
     vrfs = ['r1-cust1', 'r3-cust1', 'r4-cust1']
-    cmds = ['ip link add {} type vrf table 10',
-            'ip ru add oif {} table 10',
-            'ip ru add iif {} table 10',
-            'ip link set dev {} up']
+    if CustomizeVrfWithNetns == True:
+        cmds = ['ip netns add {}']
+    else:
+        cmds = ['ip link add {} type vrf table 10',
+                'ip ru add oif {} table 10',
+                'ip ru add iif {} table 10',
+                'ip link set dev {} up']
     rtrs_vrf = zip(rtrs, vrfs)
     for rtr_vrf in rtrs_vrf:
         # enable MPLS before VRF configuration
@@ -215,14 +219,22 @@ def ltemplatePreRouterStartHook():
         logger.info('setup {} vrf {}, {}-eth4. enabled mpls input.'.format(rtr_vrf[0], rtr_vrf[1], rtr_vrf[0]))
         router = tgen.gears[rtr_vrf[0]]
         for cmd in cmds:
+
             cc.doCmd(tgen, rtr_vrf[0], cmd.format(rtr_vrf[1]))
-        cc.doCmd(tgen, rtr_vrf[0], 'ip link set dev {}-eth4 master {}'.format(rtr_vrf[0], rtr_vrf[1]))
+        if CustomizeVrfWithNetns == True:
+            cc.doCmd(tgen, rtr_vrf[0], 'ip link set dev {}-eth4 netns {}'.format(rtr_vrf[0], rtr_vrf[1]))
+            cc.doCmd(tgen, rtr_vrf[0], 'ip netns exec {} ifconfig {}-eth4 up'.format(rtr_vrf[1], rtr_vrf[0]))
+        else:
+            cc.doCmd(tgen, rtr_vrf[0], 'ip link set dev {}-eth4 master {}'.format(rtr_vrf[0], rtr_vrf[1]))
     #configure r4-cust2 VRFs & MPLS
     rtrs = ['r4']
-    cmds = ['ip link add r4-cust2 type vrf table 20',
-            'ip ru add oif r4-cust2 table 20',
-            'ip ru add iif r4-cust2 table 20',
-            'ip link set dev r4-cust2 up']
+    if CustomizeVrfWithNetns == True:
+        cmds = ['ip netns add r4-cust2']
+    else:
+        cmds = ['ip link add r4-cust2 type vrf table 20',
+                'ip ru add oif r4-cust2 table 20',
+                'ip ru add iif r4-cust2 table 20',
+                'ip link set dev r4-cust2 up']
     for rtr in rtrs:
         # enable MPLS before VRF configuration
         # this avoids having to handle VRF differences between NS and vrf-lite
@@ -232,7 +244,11 @@ def ltemplatePreRouterStartHook():
         logger.info('setup {0} vrf r4-cust2, {0}-eth5. enabled mpls input.'.format(rtr))
         for cmd in cmds:
             cc.doCmd(tgen, rtr, cmd)
-        cc.doCmd(tgen, rtr, 'ip link set dev {}-eth5 master r4-cust2'.format(rtr))
+        if CustomizeVrfWithNetns == True:
+            cc.doCmd(tgen, rtr, 'ip link set dev {}-eth5 netns r4-cust2'.format(rtr))
+            cc.doCmd(tgen, rtr, 'ip netns exec r4-cust2 ifconfig {}-eth5 up'.format(rtr))
+        else:
+            cc.doCmd(tgen, rtr, 'ip link set dev {}-eth5 master r4-cust2'.format(rtr))
     global InitSuccess
     if cc.getOutput():
         InitSuccess = False
