@@ -302,7 +302,7 @@ def version_cmp(v1, v2):
             return -1
     return 0
 
-def ip4_route(node):
+def ip4_route(node, netns=None):
     """
     Gets a structured return of the command 'ip route'. It can be used in
     conjuction with json_cmp() to provide accurate assert explanations.
@@ -320,7 +320,11 @@ def ip4_route(node):
         }
     }
     """
-    output = normalize_text(node.run('ip route')).splitlines()
+    if netns == None:
+        output = normalize_text(node.run('ip route')).splitlines()
+    else:
+        extra_str = 'ip netns exec ' + netns + ' ip route'
+        output = normalize_text(node.run(extra_str)).splitlines()
     result = {}
     for line in output:
         columns = line.split(' ')
