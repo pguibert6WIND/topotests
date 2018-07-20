@@ -150,6 +150,21 @@ def compare_show_ip_ospf_vrf(rname, expected):
                               title1="Current output",
                               title2="Expected output")
 
+def compare_show_ip_route_vrf(rname, expected):
+    """
+    Calls 'show ip ospf vrf [rname]-cust1 route' for router `rname` and compare the obtained
+    result with the expected output.
+    """
+    tgen = get_topogen()
+    if tgen.gears[rname].has_version('<', '4.0') == True:
+        return
+    tmp = tgen.gears[rname].vtysh_cmd('show ip route vrf {0}-cust1'.format(rname))
+    current = re.sub(r" [0-2][0-9]:[0-5][0-9]:[0-5][0-9]", " XX:XX:XX", tmp)
+    ret = topotest.difflines(current, expected,
+                             title1="Current output",
+                             title2="Expected output")
+    return ret
+
 def test_ospf_convergence():
     "Test OSPF daemon convergence"
     tgen = get_topogen()
@@ -197,6 +212,8 @@ def test_ospf_kernel_route():
             '10.0.3.0/24': {},
             '10.0.10.0/24': {},
         }
+        if 'Backtrace' in routes:
+            pytest.skip('skipped because of ip netns command failure ( iproute2 crash)')
         assertmsg = 'OSPF IPv4 route mismatch in router "{}"'.format(router.name)
         assert topotest.json_cmp(routes, expected) is None, assertmsg
 
@@ -311,6 +328,8 @@ def test_ospf_link_down_kernel_route():
                 '10.0.1.0/24': None,
                 '10.0.2.0/24': None,
             })
+        if 'Backtrace' in routes:
+            pytest.skip('skipped because of ip netns command failure ( iproute2 crash)')
         # Route '10.0.3.0' is no longer available for r4 since it is down.
         assertmsg = 'OSPF IPv4 route mismatch in router "{}" after link down'.format(router.name)
         assert topotest.json_cmp(routes, expected) is None, assertmsg

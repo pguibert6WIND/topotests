@@ -320,6 +320,20 @@ def version_cmp(v1, v2):
             return -1
     return 0
 
+def ip4_route_zebra(node, netns=None):
+    """
+    Gets an output of 'show ip route' command. It can be used
+    with comparing the output to a reference
+    """
+    if netns == None:
+        extra_str = 'vtysh -c \"' + 'show ip route \"'
+        tmp = node.run(extra_str)
+    else:
+        extra_str = 'vtysh -c \"' + 'show ip route vrf ' + netns + '\"'
+        tmp = node.run(extra_str)
+    output = re.sub(r" [0-2][0-9]:[0-5][0-9]:[0-5][0-9]", " XX:XX:XX", tmp)
+    return output
+
 def ip4_route(node, netns=None):
     """
     Gets a structured return of the command 'ip route'. It can be used in
@@ -342,7 +356,10 @@ def ip4_route(node, netns=None):
         output = normalize_text(node.run('ip route')).splitlines()
     else:
         extra_str = 'ip netns exec ' + netns + ' ip route'
-        output = normalize_text(node.run(extra_str)).splitlines()
+        output = node.run(extra_str)
+        if 'Backtrace' in output:
+            return output
+        output = normalize_text(output).splitlines()
     result = {}
     for line in output:
         columns = line.split(' ')
